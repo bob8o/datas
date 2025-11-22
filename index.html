@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>GitHub Pages Chat</title>
+  <title>Firebase Chat</title>
   <style>
     body { font-family: Arial; margin: 20px; }
     #chat { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: scroll; margin-bottom: 10px; }
@@ -11,86 +11,57 @@
 </head>
 <body>
 
-<h2>GitHub Chat</h2>
+<h2>Firebase Chat</h2>
 <div id="chat"></div>
 <input type="text" id="msg" placeholder="Type your message">
 <button onclick="sendMessage()">Send</button>
 
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
 <script>
-const REPO = 'bob8o/datas'; // CHANGE THIS
-const PATH = 'chat.json';         // file is now in root
-const TOKEN = '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'; // CHANGE THIS
-const RAW_URL = `https://raw.githubusercontent.com/bob8o/datas/main/chat.json`; // root file
-let sha = null;
+  // TODO: Replace with your Firebase config
+  const firebaseConfig = {
+    apiKey: "AIzaSyCp1raOGCLjasmvsI6rVmjB39kOMEqcUC4",
+    authDomain: "chat-8c834.firebaseapp.com",
+    databaseURL: "https://chat-8c834-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "chat-8c834",
+    storageBucket: "chat-8c834.firebasestorage.app",
+    messagingSenderId: "820169117620",
+    appId: "1:820169117620:web:4f4537fcf4b98bf491ece1"
+  };
 
-// Get or set username
-let user = localStorage.getItem('chatUser');
-if (!user) {
-  user = prompt("Enter your name") || "Anonymous";
-  localStorage.setItem('chatUser', user);
-}
+  // Initialize Firebase
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
 
-// Display messages in the chat div
-function displayMessages(messages) {
+  // Get or set username
+  let user = localStorage.getItem('chatUser');
+  if (!user) {
+    user = prompt("Enter your name") || "Anonymous";
+    localStorage.setItem('chatUser', user);
+  }
+
   const chatDiv = document.getElementById('chat');
-  chatDiv.innerHTML = messages.map(m => `<b>${m.user}:</b> ${m.text}`).join('<br>');
-  chatDiv.scrollTop = chatDiv.scrollHeight;
-}
 
-// Fetch messages from GitHub raw URL
-async function fetchMessages() {
-  try {
-    const res = await fetch(RAW_URL + '?t=' + new Date().getTime()); // prevent caching
-    const messages = await res.json();
-    displayMessages(messages);
-  } catch(err) {
-    console.error("Error fetching messages:", err);
-  }
-}
+  // Listen for new messages
+  db.ref('messages').on('value', snapshot => {
+    const data = snapshot.val() || {};
+    chatDiv.innerHTML = Object.values(data).map(m => `<b>${m.user}:</b> ${m.text}`).join('<br>');
+    chatDiv.scrollTop = chatDiv.scrollHeight;
+  });
 
-// Send a new message to GitHub API
-async function sendMessage() {
-  const input = document.getElementById('msg');
-  const text = input.value.trim();
-  if (!text) return;
+  function sendMessage() {
+    const input = document.getElementById('msg');
+    const text = input.value.trim();
+    if (!text) return;
 
-  try {
-    // Get latest file info (to get SHA)
-    const res = await fetch(`https://api.github.com/repos/${REPO}/contents/${PATH}`);
-    const data = await res.json();
-    sha = data.sha;
-    const messages = JSON.parse(atob(data.content));
-
-    messages.push({user, text, time: new Date().toISOString()});
-
-    // Update file on GitHub
-    const updateRes = await fetch(`https://api.github.com/repos/${REPO}/contents/${PATH}`, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `token ${TOKEN}`,
-        'Accept': 'application/vnd.github+json'
-      },
-      body: JSON.stringify({
-        message: `New message from ${user}`,
-        content: btoa(JSON.stringify(messages)),
-        sha: sha
-      })
-    });
-
-    const updateData = await updateRes.json();
-    console.log("Message sent:", updateData);
+    const newMsgRef = db.ref('messages').push();
+    newMsgRef.set({user, text, time: Date.now()});
     input.value = '';
-    fetchMessages(); // refresh immediately
-  } catch(err) {
-    console.error("Error sending message:", err);
   }
-}
-
-// Auto-refresh every 5 seconds
-setInterval(fetchMessages, 5000);
-fetchMessages(); // initial fetch
-
 </script>
+
 </body>
 </html>
-
