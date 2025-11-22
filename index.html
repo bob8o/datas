@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>GitHub Pages Chat</title>
+  <style>
+    body { font-family: Arial; margin: 20px; }
+    #chat { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: scroll; }
+    #msg { width: 80%; }
+    button { padding: 5px 10px; }
+  </style>
+</head>
+<body>
+
+<h2>GitHub Chat</h2>
+<div id="chat"></div>
+<input type="text" id="msg" placeholder="Type your message">
+<button onclick="sendMessage()">Send</button>
+
+<script>
+const REPO = 'username/chat-app'; // CHANGE THIS
+const PATH = 'messages/chat.json';
+const TOKEN = 'YOUR_PERSONAL_ACCESS_TOKEN'; // CHANGE THIS
+let sha = null; // keep track of file SHA for updates
+
+async function fetchMessages() {
+  try {
+    const res = await fetch(`https://api.github.com/repos/${REPO}/contents/${PATH}`);
+    const data = await res.json();
+    sha = data.sha; // update SHA
+    const messages = JSON.parse(atob(data.content));
+    displayMessages(messages);
+  } catch(err) {
+    console.error(err);
+  }
+}
+
+function displayMessages(messages) {
+  const chatDiv = document.getElementById('chat');
+  chatDiv.innerHTML = messages.map(m => `<b>${m.user}:</b> ${m.text}`).join('<br>');
+  chatDiv.scrollTop = chatDiv.scrollHeight;
+}
+
+async function sendMessage() {
+  const input = document.getElementById('msg');
+  const text = input.value.trim();
+  if (!text) return;
+  
+  const user = prompt("Enter your name") || "Anonymous";
+
+  try {
+    // Fetch current messages
+    const res = await fetch(`https://api.github.com/repos/${REPO}/contents/${PATH}`);
+    const data = await res.json();
+    const messages = JSON.parse(atob(data.content));
+    sha = data.sha;
+    
+    // Add new message
+    messages.push({user, text, time: new Date().toISOString()});
+    
+    // Update file on GitHub
+    await fetch(`https://api.github.com/repos/${REPO}/contents/${PATH}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `token ${TOKEN}`,
+        'Accept': 'application/vnd.github+json'
+      },
+      body: JSON.stringify({
+        message: `New message from ${user}`,
+        content: btoa(JSON.stringify(messages)),
+        sha: sha
+      })
+    });
+    
+    input.value = '';
+    fetchMessages();
+  } catch(err) {
+    console.error(err);
+  }
+}
+
+// Poll for new messages every 5 seconds
+setInterval(fetchMessages, 5000);
+fetchMessages();
+</script>
+
+</body>
+</html>
