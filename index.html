@@ -4,8 +4,8 @@
   <title>GitHub Pages Chat</title>
   <style>
     body { font-family: Arial; margin: 20px; }
-    #chat { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: scroll; }
-    #msg { width: 80%; }
+    #chat { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: scroll; margin-bottom: 10px; }
+    #msg { width: 70%; }
     button { padding: 5px 10px; }
   </style>
 </head>
@@ -18,47 +18,53 @@
 
 <script>
 const REPO = 'bob8o/datas'; // CHANGE THIS
-const PATH = 'chat.json';
+const PATH = 'chat.json';         // file is now in root
 const TOKEN = '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'; // CHANGE THIS
-let sha = null; // keep track of file SHA for updates
+const RAW_URL = `https://raw.githubusercontent.com/bob8o/datas/main/chat.json`; // root file
+let sha = null;
 
-async function fetchMessages() {
-  try {
-    const res = await fetch(`https://api.github.com/repos/${REPO}/contents/${PATH}`);
-    const data = await res.json();
-    sha = data.sha; // update SHA
-    const messages = JSON.parse(atob(data.content));
-    displayMessages(messages);
-  } catch(err) {
-    console.error(err);
-  }
+// Get or set username
+let user = localStorage.getItem('chatUser');
+if (!user) {
+  user = prompt("Enter your name") || "Anonymous";
+  localStorage.setItem('chatUser', user);
 }
 
+// Display messages in the chat div
 function displayMessages(messages) {
   const chatDiv = document.getElementById('chat');
   chatDiv.innerHTML = messages.map(m => `<b>${m.user}:</b> ${m.text}`).join('<br>');
   chatDiv.scrollTop = chatDiv.scrollHeight;
 }
 
+// Fetch messages from GitHub raw URL
+async function fetchMessages() {
+  try {
+    const res = await fetch(RAW_URL + '?t=' + new Date().getTime()); // prevent caching
+    const messages = await res.json();
+    displayMessages(messages);
+  } catch(err) {
+    console.error("Error fetching messages:", err);
+  }
+}
+
+// Send a new message to GitHub API
 async function sendMessage() {
   const input = document.getElementById('msg');
   const text = input.value.trim();
   if (!text) return;
-  
-  const user = prompt("Enter your name") || "Anonymous";
 
   try {
-    // Fetch current messages
+    // Get latest file info (to get SHA)
     const res = await fetch(`https://api.github.com/repos/${REPO}/contents/${PATH}`);
     const data = await res.json();
-    const messages = JSON.parse(atob(data.content));
     sha = data.sha;
-    
-    // Add new message
+    const messages = JSON.parse(atob(data.content));
+
     messages.push({user, text, time: new Date().toISOString()});
-    
+
     // Update file on GitHub
-    await fetch(`https://api.github.com/repos/${REPO}/contents/${PATH}`, {
+    const updateRes = await fetch(`https://api.github.com/repos/${REPO}/contents/${PATH}`, {
       method: 'PUT',
       headers: {
         'Authorization': `token ${TOKEN}`,
@@ -70,19 +76,20 @@ async function sendMessage() {
         sha: sha
       })
     });
-    
+
+    const updateData = await updateRes.json();
+    console.log("Message sent:", updateData);
     input.value = '';
-    fetchMessages();
+    fetchMessages(); // refresh immediately
   } catch(err) {
-    console.error(err);
+    console.error("Error sending message:", err);
   }
 }
 
-// Poll for new messages every 5 seconds
+// Auto-refresh every 5 seconds
 setInterval(fetchMessages, 5000);
-fetchMessages();
-</script>
+fetchMessages(); // initial fetch
 
+</script>
 </body>
 </html>
-
